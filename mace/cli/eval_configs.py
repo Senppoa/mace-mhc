@@ -151,16 +151,20 @@ def get_committee_output(
     index each time) and return the mean energy/forces/stress plus the committee
     standard deviation in ``energy_std`` and ``forces_std``.
     """
-    base_head = batch["head"]
     energies, forces, stresses = [], [], []
     for h in head_indices:
-        batch["head"] = torch.full_like(base_head, h)
-        out = model(batch, compute_stress=compute_stress)
-        energies.append(out["energy"])
-        forces.append(out["forces"])
+        # Fresh clone per pass: the forward mutates the dict in place
+        # (requires_grad_ on positions, symmetric displacement for stress),
+        # so tensors must not be shared between committee passes.
+        batch_h = {
+            k: (v.clone() if torch.is_tensor(v) else v) for k, v in batch.items()
+        }
+        batch_h["head"] = torch.full_like(batch_h["head"], h)
+        out = model(batch_h, compute_stress=compute_stress)
+        energies.append(out["energy"].detach())
+        forces.append(out["forces"].detach())
         if compute_stress and out.get("stress") is not None:
-            stresses.append(out["stress"])
-    batch["head"] = base_head  # restore
+            stresses.append(out["stress"].detach())
     energy = torch.stack(energies, dim=0)  # [n_heads, n_graphs]
     force = torch.stack(forces, dim=0)  # [n_heads, n_atoms, 3]
     result = {
@@ -225,6 +229,21 @@ def run(args: argparse.Namespace) -> None:
         if len(committee_heads) < 2:
             raise ValueError(
                 f"--head_committee needs >=2 heads, got {committee_heads}"
+            )
+        unsupported = [
+            flag
+            for flag, active in [
+                ("--compute_bec", args.compute_bec),
+                ("--return_contributions", args.return_contributions),
+                ("--return_descriptors", args.return_descriptors),
+                ("--return_node_energies", args.return_node_energies),
+            ]
+            if active
+        ]
+        if unsupported:
+            raise ValueError(
+                f"--head_committee does not support {', '.join(unsupported)}; "
+                "run them in a separate pass without --head_committee."
             )
         logging.info(f"Multi-head committee over heads: {committee_heads}")
 

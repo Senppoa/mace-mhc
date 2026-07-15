@@ -185,6 +185,24 @@ def test_calculator_head_committee_explicit_list(
     assert at.calc.results["energy_var"] >= 0.0
 
 
+def test_calculator_head_committee_string_forms(trained_head_committee):
+    """'auto' and comma-separated strings resolve like True / explicit list."""
+    calc_auto = MACECalculator(
+        model_paths=trained_head_committee,
+        device="cpu",
+        default_dtype="float64",
+        head_committee="auto",
+    )
+    assert calc_auto.head_committee == ["committee-0", "committee-1"]
+    calc_csv = MACECalculator(
+        model_paths=trained_head_committee,
+        device="cpu",
+        default_dtype="float64",
+        head_committee="committee-0, committee-1",
+    )
+    assert calc_csv.head_committee == ["committee-0", "committee-1"]
+
+
 def test_calculator_head_committee_disabled(fitting_configs, trained_head_committee):
     """Without head_committee, no committee keys are produced (single head)."""
     calc = MACECalculator(

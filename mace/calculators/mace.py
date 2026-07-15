@@ -561,9 +561,10 @@ class MACECalculator(Calculator):
         """Resolve the ``head_committee`` argument to a validated list of head names.
 
         ``None`` / ``False`` -> disabled (returns ``None``).
-        ``True`` -> auto-select every available head whose name contains
-        ``"committee"`` (case-insensitive).
-        ``list[str]`` -> use exactly those heads (must all exist on the model).
+        ``True`` / ``"auto"`` -> auto-select every available head whose name
+        contains ``"committee"`` (case-insensitive).
+        ``list[str]`` or comma-separated ``str`` -> use exactly those heads
+        (must all exist on the model).
         """
         if head_committee is None or head_committee is False:
             return None
@@ -572,6 +573,11 @@ class MACECalculator(Calculator):
                 "head_committee (multi-head committee) is only supported for a "
                 "single model; a multi-model committee was supplied instead."
             )
+        if isinstance(head_committee, str):
+            if head_committee.strip().lower() == "auto":
+                head_committee = True
+            else:
+                head_committee = [h.strip() for h in head_committee.split(",")]
         if head_committee is True:
             members = [
                 h for h in self.available_heads if "committee" in str(h).lower()
@@ -590,11 +596,11 @@ class MACECalculator(Calculator):
                     f"head_committee heads {missing} not found in model heads "
                     f"{self.available_heads}"
                 )
-            if len(members) < 2:
-                raise ValueError(
-                    "head_committee needs at least 2 heads to form a committee, "
-                    f"got {members}"
-                )
+        if len(members) < 2:
+            raise ValueError(
+                "head_committee needs at least 2 heads to form a committee, "
+                f"got {members}"
+            )
         return members
 
     def _atoms_to_batch(self, atoms):
