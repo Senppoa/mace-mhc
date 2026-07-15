@@ -109,6 +109,27 @@ def open_reader(src):
 
 
 # ----------------------------------------------------------------------------- writer
+# ASE 保留的 calculator 属性名：不允许作为 db key_value_pairs 的键。
+# MACE 内置读取器会把它们塞进 atoms.info（同时也放在 atoms.calc 里），
+# 写回前必须从 info 清掉，否则 ase.db 的 check() 抛 "Bad key: energy"。
+# 数据不丢：它们保留在 atoms.calc（SinglePointCalculator）中，
+# AtomsRow 会自动提取并存为行属性（row.energy / row.forces / ...），
+# 与原始数据的存储方式一致（读取端正是从 row.energy 读取的）。
+_CALC_PROPS = (
+    "energy", "forces", "stress", "free_energy",
+    "energies", "stresses", "dipole", "charges", "magmom", "magmoms",
+)
+# 读取端遗留的内部结构键，写回会造成嵌套污染，也一并清掉。
+_INTERNAL_KEYS = ("__arrays__", "__info__")
+
+
+def sanitize_atoms(atoms):
+    """清理读取器塞进 atoms.info 的 calculator 属性与内部键，保证可安全写回。"""
+    for k in _CALC_PROPS + _INTERNAL_KEYS:
+        atoms.info.pop(k, None)
+    return atoms
+
+
 def make_writer(path):
     """
     返回 (write(atoms), close())。
@@ -116,13 +137,14 @@ def make_writer(path):
       1. MACE 内置的 LMDBDatabase（只要装了 mace 就有）
       2. 外部 fairchem 的 LMDBDatabase
       3. ase.db.connect 退化写（同样需要 ase_db_backends）
+    所有分支写入前都会先 sanitize_atoms()。
     """
     # 1) MACE 内置写入器
     try:
         from mace.tools.fairchem_dataset.lmdb_dataset_tools import LMDBDatabase
 
         db = LMDBDatabase(path)
-        return (lambda atoms: db.write(atoms)), db.close
+        return (lambda atoms: db.write(sanitize_atoms(atoms))), db.close
     except Exception as e:
         log.warning("mace 内置 LMDBDatabase 不可用（%s），尝试外部 fairchem", e)
 
@@ -131,7 +153,7 @@ def make_writer(path):
         from fairchem.core.datasets.lmdb_database import LMDBDatabase
 
         db = LMDBDatabase(path)
-        return (lambda atoms: db.write(atoms)), db.close
+        return (lambda atoms: db.write(sanitize_atoms(atoms))), db.close
     except Exception as e:
         log.warning("外部 fairchem LMDBDatabase 不可用（%s），改用 ase.db.connect", e)
 
@@ -139,7 +161,7 @@ def make_writer(path):
     from ase.db import connect
 
     db = connect(path)
-    return (lambda atoms: db.write(atoms)), (lambda: None)
+    return (lambda atoms: db.write(sanitize_atoms(atoms))), (lambda: None)
 
 
 # ----------------------------------------------------------------------------- main
