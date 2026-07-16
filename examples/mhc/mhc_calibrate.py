@@ -74,7 +74,7 @@ def load_atoms(path, energy_key, forces_key, max_configs=None, seed=0):
             if max_configs and n > max_configs:
                 idx = np.random.default_rng(seed).choice(n, max_configs, replace=False)
             for i in idx:
-                atoms_list.append(_stash(ds.get_atoms(int(i))))
+                atoms_list.append(_stash(ds.get_atoms(ds.ids[int(i)])))
             log.info("读入验证集（fairchem）：%d / %d", len(atoms_list), n)
             return atoms_list
         except Exception as e:  # pylint: disable=broad-except

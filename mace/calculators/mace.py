@@ -249,7 +249,7 @@ class MACECalculator(Calculator):
 
             if model_type in ["MACE", "EnergyDipoleMACE", "PolarMACE"]:
                 self.implemented_properties.extend(
-                    ["energy_comm", "energy_var", "forces_comm", "stress_var"]
+                    ["energy_comm", "energy_var", "forces_comm", "forces_var", "stress_var"]
                 )
             if model_type in [
                 "DipoleMACE",
@@ -332,7 +332,7 @@ class MACECalculator(Calculator):
                 f"heads: {self.head_committee}"
             )
             if self.model_type in ["MACE", "EnergyDipoleMACE", "PolarMACE"]:
-                for key in ["energy_comm", "energy_var", "forces_comm", "stress_var"]:
+                for key in ["energy_comm", "energy_var", "forces_comm", "forces_var", "stress_var"]:
                     if key not in self.implemented_properties:
                         self.implemented_properties.append(key)
 

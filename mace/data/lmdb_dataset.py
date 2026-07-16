@@ -44,6 +44,14 @@ class LMDBDataset(Dataset):
             if "stress" in atoms.calc.results:
                 atoms.info[DefaultKeys.STRESS.value] = atoms.calc.results["stress"]
 
+        # Fix: OMol aselmdb stores charge/spin under "charge"/"spin" keys,
+        # but KeySpecification.from_defaults() only reads "total_charge"/"total_spin".
+        # Convert before config_from_atoms to prevent silent fallback to defaults (0/1).
+        if "charge" in atoms.info and "total_charge" not in atoms.info:
+            atoms.info["total_charge"] = atoms.info["charge"]
+        if "spin" in atoms.info and "total_spin" not in atoms.info:
+            atoms.info["total_spin"] = atoms.info["spin"]
+
         config = config_from_atoms(
             atoms,
             key_specification=KeySpecification.from_defaults(),
